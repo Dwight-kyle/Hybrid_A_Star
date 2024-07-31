@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(hybrid_a_star)
 
+set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+
 message(STATUS "Hybrid A star")
 message(STATUS "Author: Zhang Zhimeng")
 

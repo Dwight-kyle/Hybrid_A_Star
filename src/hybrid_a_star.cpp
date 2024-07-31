@@ -53,19 +53,20 @@ HybridAStar::HybridAStar(double steering_angle, int steering_angle_discrete_num,
         << segment_length_ << " | step_size: " << move_step_size_;
 
     rs_path_ptr_ = std::make_shared<RSPath>(wheel_base_ / std::tan(steering_radian_));
-    tie_breaker_ = 1.0 + 1e-3;
+    tie_breaker_ = 1.0 + 1e-3; // 平局决胜者：在搜索过程中遇到多个具有相同F值的节点时，如何选择下一个扩展节点的问题的机制
 
-    STATE_GRID_SIZE_PHI_ = grid_size_phi;
-    ANGULAR_RESOLUTION_ = 360.0 / STATE_GRID_SIZE_PHI_ * M_PI / 180.0;
+    STATE_GRID_SIZE_PHI_ = grid_size_phi;    // 
+    ANGULAR_RESOLUTION_ = 360.0 / STATE_GRID_SIZE_PHI_ * M_PI / 180.0;    // 角度值的分辨率
 }
 
 HybridAStar::~HybridAStar() {
     ReleaseMemory();
 }
 
+// 设置车辆形状和重置地图（物理地图和搜索地图）
 void HybridAStar::Init(double x_lower, double x_upper, double y_lower, double y_upper,
                        double state_grid_resolution, double map_grid_resolution) {
-    SetVehicleShape(4.7, 2.0, 1.3);
+    SetVehicleShape(4.7, 2.0, 1.3);   // 设置车辆形状 长度 + 宽度 + 后轴到尾部的距离 
 
     map_x_lower_ = x_lower;
     map_x_upper_ = x_upper;
@@ -74,12 +75,15 @@ void HybridAStar::Init(double x_lower, double x_upper, double y_lower, double y_
     STATE_GRID_RESOLUTION_ = state_grid_resolution;
     MAP_GRID_RESOLUTION_ = map_grid_resolution;
 
+    // 搜索格点大小
     STATE_GRID_SIZE_X_ = std::floor((map_x_upper_ - map_x_lower_) / STATE_GRID_RESOLUTION_);
     STATE_GRID_SIZE_Y_ = std::floor((map_y_upper_ - map_y_lower_) / STATE_GRID_RESOLUTION_);
 
+    // 地图格点大小
     MAP_GRID_SIZE_X_ = std::floor((map_x_upper_ - map_x_lower_) / MAP_GRID_RESOLUTION_);
     MAP_GRID_SIZE_Y_ = std::floor((map_y_upper_ - map_y_lower_) / MAP_GRID_RESOLUTION_);
 
+    // 重置地图数据
     if (map_data_) {
         delete[] map_data_;
         map_data_ = nullptr;
@@ -87,6 +91,7 @@ void HybridAStar::Init(double x_lower, double x_upper, double y_lower, double y_
 
     map_data_ = new uint8_t[MAP_GRID_SIZE_X_ * MAP_GRID_SIZE_Y_];
 
+    // 重置搜索地图(三维数组: x, y, phi)
     if (state_node_map_) {
         for (int i = 0; i < STATE_GRID_SIZE_X_; ++i) {
 
@@ -291,11 +296,12 @@ void HybridAStar::SetObstacle(const double pt_x, const double pt_y) {
 }
 
 void HybridAStar::SetVehicleShape(double length, double width, double rear_axle_dist) {
+    // rear_axle_dist: 后轴到车尾部的距离
     vehicle_shape_.resize(8);
-    vehicle_shape_.block<2, 1>(0, 0) = Vec2d(-rear_axle_dist, width / 2);
-    vehicle_shape_.block<2, 1>(2, 0) = Vec2d(length - rear_axle_dist, width / 2);
-    vehicle_shape_.block<2, 1>(4, 0) = Vec2d(length - rear_axle_dist, -width / 2);
-    vehicle_shape_.block<2, 1>(6, 0) = Vec2d(-rear_axle_dist, -width / 2);
+    vehicle_shape_.block<2, 1>(0, 0) = Vec2d(-rear_axle_dist, width / 2);          // 左后
+    vehicle_shape_.block<2, 1>(2, 0) = Vec2d(length - rear_axle_dist, width / 2);  // 左前
+    vehicle_shape_.block<2, 1>(4, 0) = Vec2d(length - rear_axle_dist, -width / 2); // 右前
+    vehicle_shape_.block<2, 1>(6, 0) = Vec2d(-rear_axle_dist, -width / 2);         // 左前
 
     const double step_size = move_step_size_;
     const auto N_length = static_cast<unsigned int>(length / step_size);
@@ -303,7 +309,7 @@ void HybridAStar::SetVehicleShape(double length, double width, double rear_axle_
     vehicle_shape_discrete_.resize(2, (N_length + N_width) * 2u);
 
     const Vec2d edge_0_normalized = (vehicle_shape_.block<2, 1>(2, 0)
-                                     - vehicle_shape_.block<2, 1>(0, 0)).normalized();
+                                     - vehicle_shape_.block<2, 1>(0, 0)).normalized(); // 单位向量
     for (unsigned int i = 0; i < N_length; ++i) {
         vehicle_shape_discrete_.block<2, 1>(0, i + N_length)
                 = vehicle_shape_.block<2, 1>(4, 0) - edge_0_normalized * i * step_size;
@@ -359,6 +365,7 @@ void HybridAStar::GetNeighborNodes(const StateNode::Ptr &curr_node_ptr,
         VectorVec3d intermediate_state;
         bool has_obstacle = false;
 
+        // 获取当前的状态
         double x = curr_node_ptr->state_.x();
         double y = curr_node_ptr->state_.y();
         double theta = curr_node_ptr->state_.z();
@@ -367,9 +374,10 @@ void HybridAStar::GetNeighborNodes(const StateNode::Ptr &curr_node_ptr,
 
         // forward
         for (int j = 1; j <= segment_length_discrete_num_; j++) {
-            DynamicModel(move_step_size_, phi, x, y, theta);
-            intermediate_state.emplace_back(Vec3d(x, y, theta));
+            DynamicModel(move_step_size_, phi, x, y, theta);     // 计算拓展后的状态值
+            intermediate_state.emplace_back(Vec3d(x, y, theta)); // 将当前节点加入中间态
 
+            // 进行碰撞检测，如果碰撞就将 has_obstacle 置为true，并退出循环
             if (!CheckCollision(x, y, theta)) {
                 has_obstacle = true;
                 break;
@@ -377,6 +385,7 @@ void HybridAStar::GetNeighborNodes(const StateNode::Ptr &curr_node_ptr,
         }
 
         Vec3i grid_index = State2Index(intermediate_state.back());
+        // 如果 没有越界 且 没有障碍物
         if (!BeyondBoundary(intermediate_state.back().head(2)) && !has_obstacle) {
             auto neighbor_forward_node_ptr = new StateNode(grid_index);
             neighbor_forward_node_ptr->intermediate_states_ = intermediate_state;
@@ -433,6 +442,7 @@ double HybridAStar::Mod2Pi(const double &x) {
     return v;
 }
 
+// 越界检查，如果越界返回true
 bool HybridAStar::BeyondBoundary(const Vec2d &pt) const {
     return pt.x() < map_x_lower_ || pt.x() > map_x_upper_ || pt.y() < map_y_lower_ || pt.y() > map_y_upper_;
 }
@@ -492,25 +502,26 @@ double HybridAStar::ComputeG(const StateNode::Ptr &current_node_ptr,
     return g;
 }
 
+// HybridAStar 搜索算法
 bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
-    Timer search_used_time;
+    Timer search_used_time;  // 搜索算法总计时开始
 
     double neighbor_time = 0.0, compute_h_time = 0.0, compute_g_time = 0.0;
 
-    const Vec3i start_grid_index = State2Index(start_state);
-    const Vec3i goal_grid_index = State2Index(goal_state);
+    const Vec3i start_grid_index = State2Index(start_state);   // state -> index
+    const Vec3i goal_grid_index = State2Index(goal_state);    
 
     auto goal_node_ptr = new StateNode(goal_grid_index);
-    goal_node_ptr->state_ = goal_state;
-    goal_node_ptr->direction_ = StateNode::NO;
-    goal_node_ptr->steering_grade_ = 0;
+    goal_node_ptr->state_ = goal_state;        // 保存 state
+    goal_node_ptr->direction_ = StateNode::NO; 
+    goal_node_ptr->steering_grade_ = 0;        
 
     auto start_node_ptr = new StateNode(start_grid_index);
     start_node_ptr->state_ = start_state;
     start_node_ptr->steering_grade_ = 0;
     start_node_ptr->direction_ = StateNode::NO;
     start_node_ptr->node_status_ = StateNode::IN_OPENSET;
-    start_node_ptr->intermediate_states_.emplace_back(start_state);
+    start_node_ptr->intermediate_states_.emplace_back(start_state);  // 加入到待访问序列中
     start_node_ptr->g_cost_ = 0.0;
     start_node_ptr->f_cost_ = ComputeH(start_node_ptr, goal_node_ptr);
 
@@ -526,11 +537,12 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
 
     int count = 0;
     while (!openset_.empty()) {
-        current_node_ptr = openset_.begin()->second;
-        current_node_ptr->node_status_ = StateNode::IN_CLOSESET;
+        current_node_ptr = openset_.begin()->second;   // 取出openset第一个元素
+        current_node_ptr->node_status_ = StateNode::IN_CLOSESET; // 将该元素置为已访问
         openset_.erase(openset_.begin());
 
         if ((current_node_ptr->state_.head(2) - goal_node_ptr->state_.head(2)).norm() <= shot_distance_) {
+            // 欧式距离小于shot_distance_，即找到终点
             double rs_length = 0.0;
             if (AnalyticExpansions(current_node_ptr, goal_node_ptr, rs_length)) {
                 terminal_node_ptr_ = goal_node_ptr;
@@ -557,22 +569,26 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
             }
         }
 
-        Timer timer_get_neighbor;
+        Timer timer_get_neighbor;    // 获得邻居节点计时开始
         GetNeighborNodes(current_node_ptr, neighbor_nodes_ptr);
-        neighbor_time = neighbor_time + timer_get_neighbor.End();
+        neighbor_time = neighbor_time + timer_get_neighbor.End();  // 累积获取邻居节点的时间
 
+        // 遍历邻居节点
         for (unsigned int i = 0; i < neighbor_nodes_ptr.size(); ++i) {
             neighbor_node_ptr = neighbor_nodes_ptr[i];
 
+            // 计算 G 值
             Timer timer_compute_g;
             const double neighbor_edge_cost = ComputeG(current_node_ptr, neighbor_node_ptr);
             compute_g_time = compute_g_time + timer_get_neighbor.End();
 
+            // 计算 H 值
             Timer timer_compute_h;
             const double current_h = ComputeH(current_node_ptr, goal_node_ptr) * tie_breaker_;
             compute_h_time = compute_h_time + timer_compute_h.End();
 
             const Vec3i &index = neighbor_node_ptr->grid_index_;
+            // 新节点，加入到 openset
             if (state_node_map_[index.x()][index.y()][index.z()] == nullptr) {
                 neighbor_node_ptr->g_cost_ = current_node_ptr->g_cost_ + neighbor_edge_cost;
                 neighbor_node_ptr->parent_node_ = current_node_ptr;
@@ -582,6 +598,7 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
                 state_node_map_[index.x()][index.y()][index.z()] = neighbor_node_ptr;
                 continue;
             } else if (state_node_map_[index.x()][index.y()][index.z()]->node_status_ == StateNode::IN_OPENSET) {
+                // 已经加入 openset 的节点 如果 cost 值更小，更新 parent_node
                 double g_cost_temp = current_node_ptr->g_cost_ + neighbor_edge_cost;
 
                 if (state_node_map_[index.x()][index.y()][index.z()]->g_cost_ > g_cost_temp) {
@@ -598,6 +615,7 @@ bool HybridAStar::Search(const Vec3d &start_state, const Vec3d &goal_state) {
                 }
                 continue;
             } else if (state_node_map_[index.x()][index.y()][index.z()]->node_status_ == StateNode::IN_CLOSESET) {
+                // 已经被访问过的节点
                 delete neighbor_node_ptr;
                 continue;
             }

@@ -33,9 +33,7 @@ Since the author did not open source the algorithm, it took me weeks to reproduc
 (2). **ROS Melodic**: I'm developing on the melodic version. Using other versions of ROS, it should also work normally
 
 ```shell
-sudo apt-get install ros-melodic-costmap-*
-sudo apt-get install ros-melodic-map-server
-sudo apt-get install ros-melodic-tf
+sudo apt-get install ros-noetic-costmap-* ros-noetic-map-server ros-noetic-tf
 ```
 
 (3). **Eigen 3**

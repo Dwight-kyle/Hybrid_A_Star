@@ -142,7 +142,7 @@ private:
 
     double wheel_base_; //The distance between the front and rear axles
     double segment_length_;
-    double move_step_size_;
+    double move_step_size_;  
     double steering_radian_step_size_;
     double steering_radian_; //radian
     double tie_breaker_;
@@ -158,7 +158,7 @@ private:
 
     std::shared_ptr<RSPath> rs_path_ptr_;
 
-    VecXd vehicle_shape_;
+    VecXd vehicle_shape_;          // 车辆形状
     MatXd vehicle_shape_discrete_;
 
     // debug

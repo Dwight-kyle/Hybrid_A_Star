@@ -33,24 +33,26 @@
 #include <Eigen/Dense>
 
 struct StateNode {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // 内存对齐，提高速度
 
-    enum NODE_STATUS {
+    enum NODE_STATUS {  // 节点状态：未被访问/正在操作/已被访问
         NOT_VISITED = 0, IN_OPENSET = 1, IN_CLOSESET = 2
     };
 
-    enum DIRECTION {
+    enum DIRECTION {    // 方向：前进/后退/...
         FORWARD = 0, BACKWARD = 1, NO = 3
     };
 
-    StateNode() = delete;
+    StateNode() = delete; // 默认构造函数不能被调用，否则会报错
 
-    explicit StateNode(const Vec3i &grid_index) {
+    // 构造函数
+    explicit StateNode(const Vec3i &grid_index) {  // explicit 阻止隐式类型转换
         node_status_ = NOT_VISITED;
         grid_index_ = grid_index;
         parent_node_ = nullptr;
     }
 
+    // Reset方法
     void Reset() {
         node_status_ = NOT_VISITED;
         parent_node_ = nullptr;
@@ -65,10 +67,10 @@ struct StateNode {
     double g_cost_{}, f_cost_{};
     int steering_grade_{};
 
-    StateNode *parent_node_;
+    StateNode *parent_node_;   // 父节点
     typedef StateNode *Ptr;
 
-    VectorVec3d intermediate_states_;
+    VectorVec3d intermediate_states_;  // 中间态(OpenSet)
 };
 
 #endif //HYBRID_A_STAR_STATE_NODE_H

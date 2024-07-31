@@ -41,26 +41,26 @@ public:
 
     explicit HybridAStarFlow(ros::NodeHandle &nh);
 
-    void Run();
+    void Run();   // 运行函数
 
 private:
-    void InitPoseData();
+    void InitPoseData(); // 初始化位置信息
 
-    void ReadData();
+    void ReadData();  // 读取数据
 
-    bool HasStartPose();
+    bool HasStartPose();  // 判断是否获取到起点位置
 
-    bool HasGoalPose();
+    bool HasGoalPose(); // 判断是否获取到终点位置
 
-    void PublishPath(const VectorVec3d &path);
+    void PublishPath(const VectorVec3d &path); // 发布路径话题
 
-    void PublishSearchedTree(const VectorVec4d &searched_tree);
+    void PublishSearchedTree(const VectorVec4d &searched_tree);  // 发布搜索树
 
     void PublishVehiclePath(const VectorVec3d &path, double width,
-                            double length, unsigned int vehicle_interval);
+                            double length, unsigned int vehicle_interval); // 发表车辆的行驶路径
 
 private:
-    std::shared_ptr<HybridAStar> kinodynamic_astar_searcher_ptr_;
+    std::shared_ptr<HybridAStar> kinodynamic_astar_searcher_ptr_;   // hybrid_astar 类型的指针
     std::shared_ptr<CostMapSubscriber> costmap_sub_ptr_;
     std::shared_ptr<InitPoseSubscriber2D> init_pose_sub_ptr_;
     std::shared_ptr<GoalPoseSubscriber2D> goal_pose_sub_ptr_;
@@ -69,7 +69,7 @@ private:
     ros::Publisher searched_tree_pub_;
     ros::Publisher vehicle_path_pub_;
 
-    std::deque<geometry_msgs::PoseWithCovarianceStampedPtr> init_pose_deque_;
+    std::deque<geometry_msgs::PoseWithCovarianceStampedPtr> init_pose_deque_;  // 初始位置的双端队列
     std::deque<geometry_msgs::PoseStampedPtr> goal_pose_deque_;
     std::deque<nav_msgs::OccupancyGridPtr> costmap_deque_;
 

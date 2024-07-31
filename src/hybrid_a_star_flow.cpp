@@ -46,42 +46,49 @@ double Mod2Pi(const double &x) {
 }
 
 HybridAStarFlow::HybridAStarFlow(ros::NodeHandle &nh) {
-    double steering_angle = nh.param("planner/steering_angle", 10);
-    int steering_angle_discrete_num = nh.param("planner/steering_angle_discrete_num", 1);
-    double wheel_base = nh.param("planner/wheel_base", 1.0);
-    double segment_length = nh.param("planner/segment_length", 1.6);
-    int segment_length_discrete_num = nh.param("planner/segment_length_discrete_num", 8);
-    double steering_penalty = nh.param("planner/steering_penalty", 1.05);
-    double steering_change_penalty = nh.param("planner/steering_change_penalty", 1.5);
-    double reversing_penalty = nh.param("planner/reversing_penalty", 2.0);
-    double shot_distance = nh.param("planner/shot_distance", 5.0);
+    // 参数读取
+    double steering_angle = nh.param("planner/steering_angle", 10);       // 前轮转角
+    int steering_angle_discrete_num = nh.param("planner/steering_angle_discrete_num", 1); //转角离散数 
+    double wheel_base = nh.param("planner/wheel_base", 1.0); // 轴距
+    double segment_length = nh.param("planner/segment_length", 1.6); // 分段长度
+    int segment_length_discrete_num = nh.param("planner/segment_length_discrete_num", 8); // 段长度离散数
+    double steering_penalty = nh.param("planner/steering_penalty", 1.05); // 转向惩罚系数
+    double steering_change_penalty = nh.param("planner/steering_change_penalty", 1.5); // 转向改变惩罚系数
+    double reversing_penalty = nh.param("planner/reversing_penalty", 2.0); // 换向惩罚系数
+    double shot_distance = nh.param("planner/shot_distance", 5.0);  // 停车距离
 
     kinodynamic_astar_searcher_ptr_ = std::make_shared<HybridAStar>(
             steering_angle, steering_angle_discrete_num, segment_length, segment_length_discrete_num, wheel_base,
             steering_penalty, reversing_penalty, steering_change_penalty, shot_distance
     );
-    costmap_sub_ptr_ = std::make_shared<CostMapSubscriber>(nh, "/map", 1);
-    init_pose_sub_ptr_ = std::make_shared<InitPoseSubscriber2D>(nh, "/initialpose", 1);
-    goal_pose_sub_ptr_ = std::make_shared<GoalPoseSubscriber2D>(nh, "/move_base_simple/goal", 1);
+    // 创建订阅话题
+    costmap_sub_ptr_ = std::make_shared<CostMapSubscriber>(nh, "/map", 1); // costmap
+    init_pose_sub_ptr_ = std::make_shared<InitPoseSubscriber2D>(nh, "/initialpose", 1); // 起点
+    goal_pose_sub_ptr_ = std::make_shared<GoalPoseSubscriber2D>(nh, "/move_base_simple/goal", 1); // 终点
 
-    path_pub_ = nh.advertise<nav_msgs::Path>("searched_path", 1);
-    searched_tree_pub_ = nh.advertise<visualization_msgs::Marker>("searched_tree", 1);
-    vehicle_path_pub_ = nh.advertise<visualization_msgs::MarkerArray>("vehicle_path", 1);
+    // 创建发布话题
+    path_pub_ = nh.advertise<nav_msgs::Path>("searched_path", 1);  // 发布搜索的路径
+    searched_tree_pub_ = nh.advertise<visualization_msgs::Marker>("searched_tree", 1);  // 发布搜索树
+    vehicle_path_pub_ = nh.advertise<visualization_msgs::MarkerArray>("vehicle_path", 1);  // 发布车辆路径
 
-    has_map_ = false;
+    has_map_ = false;  // 标志位: 是否有地图
 }
 
 void HybridAStarFlow::Run() {
     ReadData();
 
+    // 如果没有地图，设置地图信息
     if (!has_map_) {
+        // costmap_deque_ 里没有数据，直接返回
         if (costmap_deque_.empty()) {
             return;
         }
 
+        // 取出队列前的地图
         current_costmap_ptr_ = costmap_deque_.front();
         costmap_deque_.pop_front();
 
+        // 设置地图的分辨率为0.2，即0.2 m/pixel
         const double map_resolution = 0.2;
         kinodynamic_astar_searcher_ptr_->Init(
                 current_costmap_ptr_->info.origin.position.x,
@@ -92,8 +99,8 @@ void HybridAStarFlow::Run() {
                 map_resolution
         );
 
-        unsigned int map_w = std::floor(current_costmap_ptr_->info.width / map_resolution);
-        unsigned int map_h = std::floor(current_costmap_ptr_->info.height / map_resolution);
+        unsigned int map_w = std::floor(current_costmap_ptr_->info.width / map_resolution); // 地图宽度
+        unsigned int map_h = std::floor(current_costmap_ptr_->info.height / map_resolution);// 地图高度
         for (unsigned int w = 0; w < map_w; ++w) {
             for (unsigned int h = 0; h < map_h; ++h) {
                 auto x = static_cast<unsigned int> ((w + 0.5) * map_resolution
@@ -108,10 +115,10 @@ void HybridAStarFlow::Run() {
         }
         has_map_ = true;
     }
-    costmap_deque_.clear();
+    costmap_deque_.clear();  // 清除 costmap 队列中的数据
 
     while (HasStartPose() && HasGoalPose()) {
-        InitPoseData();
+        InitPoseData(); // 初始化位置数据
 
         double start_yaw = tf::getYaw(current_init_pose_ptr_->pose.pose.orientation);
         double goal_yaw = tf::getYaw(current_goal_pose_ptr_->pose.orientation);
@@ -178,6 +185,7 @@ void HybridAStarFlow::Run() {
 }
 
 void HybridAStarFlow::ReadData() {
+    // 读取costmap 起点和终点
     costmap_sub_ptr_->ParseData(costmap_deque_);
     init_pose_sub_ptr_->ParseData(init_pose_deque_);
     goal_pose_sub_ptr_->ParseData(goal_pose_deque_);
